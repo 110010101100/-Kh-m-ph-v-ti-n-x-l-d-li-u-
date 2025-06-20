@@ -247,20 +247,16 @@ plt.show()
 #=============================== Buoc 4 ===============================
 
 
-# %% [markdown]
-# ## Step 4: Tối ưu hóa MLP bằng GridSearchCV
-# Chạy riêng bước này để tìm mô hình MLP tốt nhất cho tập dữ liệu Iris.
+# step4_mlp_gridsearch.py
 
-# %% [markdown]
-# ### 4.1: Chuẩn bị dữ liệu (tự động tạo lại iris_scaled.csv nếu chưa có)
-
-# %%
+print("=== Bước 4.1: Kiểm tra và tạo dữ liệu đầu vào ===")
 import os
 import pandas as pd
 from sklearn.datasets import load_iris
 from sklearn.preprocessing import StandardScaler
 
 if not os.path.exists("iris_scaled.csv"):
+    print("📂 Chưa có file iris_scaled.csv – Đang tạo từ bộ Iris gốc...")
     iris = load_iris()
     data = pd.DataFrame(data=iris.data, columns=iris.feature_names)
     data['target'] = iris.target
@@ -271,32 +267,32 @@ if not os.path.exists("iris_scaled.csv"):
     data_scaled['target'] = data['target']
 
     data_scaled.to_csv('iris_scaled.csv', index=False)
-    print("✅ Đã tạo file iris_scaled.csv từ dữ liệu gốc.")
+    print("✅ Đã lưu iris_scaled.csv (dữ liệu đã chuẩn hóa).")
 else:
-    print("✅ Đã tìm thấy file iris_scaled.csv.")
+    print("✅ Đã tìm thấy iris_scaled.csv.")
 
-# %% [markdown]
-# ### 4.2: Cài đặt GridSearchCV với pipeline
+print("📈 Xem thử 5 dòng đầu:")
+print(pd.read_csv("iris_scaled.csv").head())
 
-# %%
+
+print("\n=== Bước 4.2: Cấu hình pipeline và tham số tìm kiếm ===")
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 import joblib
 
-# Đọc dữ liệu
 df = pd.read_csv("iris_scaled.csv")
 X = df.drop("target", axis=1)
 y = df["target"]
 
-# Tạo pipeline
+print(f"🔢 Dữ liệu huấn luyện: {X.shape[0]} mẫu, {X.shape[1]} đặc trưng")
+
 pipeline = Pipeline([
-    ('scaler', StandardScaler()),  # (dự phòng nếu chạy raw dữ liệu)
+    ('scaler', StandardScaler()),
     ('mlp', MLPClassifier(max_iter=1000, random_state=42))
 ])
 
-# Lưới siêu tham số
 param_grid = {
     'mlp__hidden_layer_sizes': [(50,), (100,), (50, 50), (100, 50)],
     'mlp__activation': ['relu', 'tanh', 'logistic'],
@@ -305,12 +301,19 @@ param_grid = {
     'mlp__learning_rate_init': [0.001, 0.01],
 }
 
+total_combinations = (
+    len(param_grid['mlp__hidden_layer_sizes']) *
+    len(param_grid['mlp__activation']) *
+    len(param_grid['mlp__solver']) *
+    len(param_grid['mlp__alpha']) *
+    len(param_grid['mlp__learning_rate_init'])
+)
+print(f"🔧 Tổng số tổ hợp siêu tham số: {total_combinations}")
+
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-# %% [markdown]
-# ### 4.3: Tiến hành GridSearchCV
 
-# %%
+print("\n=== Bước 4.3: Tiến hành huấn luyện bằng GridSearchCV ===")
 grid_search = GridSearchCV(
     pipeline,
     param_grid,
@@ -321,21 +324,21 @@ grid_search = GridSearchCV(
     return_train_score=True
 )
 
-print("⏳ Đang huấn luyện, vui lòng chờ...")
+print("⏳ Bắt đầu huấn luyện... (mỗi dấu 'Fitting' là một tổ hợp tham số)")
 grid_search.fit(X, y)
 print("✅ Huấn luyện hoàn tất.")
 
-# %% [markdown]
-# ### 4.4: Lưu và hiển thị kết quả
 
-# %%
-# Lưu mô hình và kết quả
+print("\n=== Bước 4.4: Lưu mô hình và xem kết quả ===")
 joblib.dump(grid_search, "mlp_gridsearch_model.pkl")
 results_df = pd.DataFrame(grid_search.cv_results_)
 results_df.to_csv("mlp_gridsearch_results.csv", index=False)
+print("💾 Đã lưu mô hình và kết quả vào 'mlp_gridsearch_model.pkl' và 'mlp_gridsearch_results.csv'.")
 
-# In kết quả tốt nhất
-print("🎯 Best Parameters:", grid_search.best_params_)
-print(f"🏆 Best Accuracy: {grid_search.best_score_ * 100:.2f}%")
+print("\n🎯 Tham số tốt nhất tìm được:")
+print(grid_search.best_params_)
+print(f"🏆 Độ chính xác cao nhất (cross-validated): {grid_search.best_score_ * 100:.2f}%")
 
-# %%
+print("\n🔝 Top 3 cấu hình tốt nhất:")
+top3 = results_df.sort_values(by='mean_test_score', ascending=False).head(3)
+print(top3[['mean_test_score', 'params']])
